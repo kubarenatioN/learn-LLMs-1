@@ -33,3 +33,54 @@
 input → [component].pipe([component]).pipe([component]) → output
 ```
 Every LangChain component has `.invoke()`. Every component can be piped. That's the whole framework.
+
+---
+
+### Lesson 2 — Structured Output
+
+**Zod schemas** — define the shape of data you want from the model
+- `z.object({ field: z.string().describe('hint for the model') })`
+- Supported types: `z.string()`, `z.number()`, `z.boolean()`, `z.array()`, `z.enum([...])`
+- `.describe()` on each field tells the model what to put there
+
+**`.withStructuredOutput(schema)`** — enforced JSON responses
+- Returns a new model instance that always outputs a JS object matching the schema
+- No `JSON.parse()`, no `try/catch` — parsing is handled automatically
+- Schema is sent to the API via `response_format` parameter (enforced at API level)
+- Works in chains: `prompt.pipe(model.withStructuredOutput(schema))`
+
+**Strictness depends on provider** — some providers may return extra fields not in your schema
+
+---
+
+### Component Input/Output Reference
+
+Every component implements the `Runnable` interface (has `.invoke()`).
+Rule: **output of step N must be valid input for step N+1.**
+
+| Component | Input | Output |
+|---|---|---|
+| `ChatPromptTemplate` | `{ key: value }` object | `ChatPromptValue` (messages array) |
+| `ChatModel` | `string` or `messages[]` | `AIMessage` |
+| `ChatModel.withStructuredOutput()` | `string` or `messages[]` | plain JS object |
+| `StringOutputParser` | `AIMessage` | `string` |
+| `RunnableLambda` | anything | anything you return |
+
+**Common chain patterns:**
+```
+PromptTemplate → ChatModel → StringOutputParser          (text out)
+PromptTemplate → ChatModel.withStructuredOutput()        (object out)
+```
+
+**When unsure about a component's output** — break the chain, log the result:
+```js
+const result = await someComponent.invoke(input)
+console.log(result)
+console.log(result.constructor.name)
+```
+
+**`RunnableLambda`** — escape hatch to transform data between incompatible steps:
+```js
+import { RunnableLambda } from '@langchain/core/runnables'
+const transform = new RunnableLambda({ func: (input) => transformedOutput })
+```
