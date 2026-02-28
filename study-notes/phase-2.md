@@ -84,3 +84,34 @@ console.log(result.constructor.name)
 import { RunnableLambda } from '@langchain/core/runnables'
 const transform = new RunnableLambda({ func: (input) => transformedOutput })
 ```
+
+---
+
+### Lesson 3 — Chains in Depth
+
+**Sequential chains** — output of one chain becomes input to the next
+- Chain 1 produces a string, but chain 2's template expects `{ key: value }`
+- Use `RunnableLambda` as an adapter to reshape data between steps:
+  ```js
+  chain1
+    .pipe(new RunnableLambda({ func: (text) => ({ key: text }) }))
+    .pipe(chain2)
+  ```
+
+**`RunnableSequence.from([...])`** — compose multiple steps as an array
+- Same as chaining `.pipe()` calls, but cleaner for many steps
+- Each element is a Runnable (chain, lambda, model, etc.)
+  ```js
+  const pipeline = RunnableSequence.from([step1, step2, step3])
+  ```
+
+**Accumulating state pattern** — carry data forward across steps
+- Each step spreads previous state and adds new data: `{ ...input, newField }`
+- Later steps have access to everything produced by earlier steps:
+  ```
+  Step 1: { topic }           → adds title  → { topic, title }
+  Step 2: { topic, title }    → adds outline → { topic, title, outline }
+  Step 3: { topic, title, outline } → adds intro → { topic, title, outline, intro }
+  ```
+
+**Key takeaway:** `.pipe()`, `RunnableLambda`, and `RunnableSequence` are the three building blocks for any multi-step LLM workflow in LangChain.
