@@ -115,3 +115,39 @@ const transform = new RunnableLambda({ func: (input) => transformedOutput })
   ```
 
 **Key takeaway:** `.pipe()`, `RunnableLambda`, and `RunnableSequence` are the three building blocks for any multi-step LLM workflow in LangChain.
+
+---
+
+### Lesson 4 — Memory
+
+**The core truth:** LLMs are stateless. "Memory" = sending the entire conversation history with every request.
+
+**Message classes** — `HumanMessage`, `AIMessage`, `SystemMessage`
+- Construct messages explicitly: `new HumanMessage('text')`
+- The model reads all messages and responds in context
+- `msg._getType()` returns `'human'`, `'ai'`, or `'system'`
+
+**Manual memory** — maintain a messages array yourself
+- Push `HumanMessage` and `AIMessage` after each turn
+- Pass the full array to `model.invoke(history)`
+- Simple but doesn't scale — history grows forever, tokens overflow, cost increases
+
+**`InMemoryChatMessageHistory`** — LangChain's message store
+- `.addMessage(msg)` to store, `.getMessages()` to retrieve
+- Abstraction over the array — can be swapped for a persistent store (Redis, DB) later
+
+**`trimMessages`** — window memory strategy
+- Trims history to fit a token budget, keeping only recent messages
+- Key options:
+  - `maxTokens` — token budget for the trimmed history
+  - `strategy: 'last'` — keep the most recent messages
+  - `startOn: 'human'` — always start the window on a human message
+  - `includeSystem: true` — always keep the system message regardless of trimming
+- `tokenCounter` — function to estimate token count (rough: `content.length / 4`)
+
+**Three memory strategies:**
+| Strategy | How it works | Tradeoff |
+|---|---|---|
+| Full history | Send everything | Simple, but overflows on long conversations |
+| Window memory (`trimMessages`) | Keep last N messages | Good balance, loses old context |
+| Summary memory | LLM summarizes old turns into a paragraph | Saves tokens, loses detail |
