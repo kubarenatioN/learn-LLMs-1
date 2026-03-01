@@ -36,15 +36,16 @@ Full plan in `course-plan.md`. Five phases: Foundations → LangChain Core → R
 - **Lesson 3:** Sequential chains, `RunnableLambda` as adapter between incompatible steps, `RunnableSequence.from([])`, accumulating state pattern (`{ ...input, newField }`).
 - **Lesson 4:** Memory — LLMs are stateless, "memory" = sending full conversation history. Manual array approach, `InMemoryChatMessageHistory`, `trimMessages` for window memory (keep recent, drop old). Three strategies: full history, window, summary.
 
-### Phase 3: RAG (2 lessons done, in progress)
+### Phase 3: RAG (3 lessons done, in progress)
 
 - **Lesson 1:** Embeddings via `hf.featureExtraction()` with `ibm-granite/granite-embedding-small-english-r2` and `provider: 'hf-inference'`. Manual cosine similarity. Semantic search ranking documents by relevance. HuggingFace `/v1` router doesn't support `/v1/embeddings` — only chat completions.
 - **Lesson 2:** Vector stores. `HuggingFaceInferenceEmbeddings` as LangChain wrapper (`embedDocuments`, `embedQuery`). `MemoryVectorStore` from `@langchain/classic/vectorstores/memory` (moved from `langchain/`). `fromTexts()` for one-step create+store. `similaritySearchWithScore(query, k)` replaces manual cosine loop. `Document` object (`pageContent` + `metadata`). Incremental `addDocuments()`. Metadata filtering with function predicate. `asRetriever(k)` converts store to chain-friendly retriever (`invoke(query) → Document[]`). Student extracted `asRetriever` demo into separate file `2-as-retriever.js`.
+- **Lesson 3:** Document loaders & text splitters. `TextLoader` from `@langchain/classic/document_loaders/fs/text` reads files into Documents. `RecursiveCharacterTextSplitter` from `@langchain/textsplitters` splits on `\n\n` → `\n` → ` ` → chars recursively. Key params: `chunkSize` (max chars), `chunkOverlap` (shared chars at boundaries). Sweet spot 300-800 chars, overlap 10-20%. Metadata preserved + `loc.lines` added. Full pipeline: load → split → `fromDocuments()` → search. Sample docs in `phase-3/sample-docs/`.
 
 ## What's next
 
-- Phase 3, Lesson 3: Document loaders & text splitters
-- Phase 3, Lessons 4-6: Retrieval chains, conversational RAG
+- Phase 3, Lesson 4: Retrieval chains (retriever + LLM combined)
+- Phase 3, Lessons 5-6: Conversational RAG
 - Phase 4: Agents & Tools
 - Phase 5: Building real applications
 
