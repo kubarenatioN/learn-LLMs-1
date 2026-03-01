@@ -6,16 +6,14 @@
  */
 
 import { HuggingFaceInferenceEmbeddings } from '@langchain/community/embeddings/hf'
-import 'dotenv/config'
+import { Document } from '@langchain/core/documents'
 import { MemoryVectorStore } from '@langchain/classic/vectorstores/memory'
+import 'dotenv/config'
 
 // --- LangChain Embeddings Wrapper ---
-// Instead of calling hf.featureExtraction() manually,
-// LangChain wraps it in an object that vector stores know how to use.
 
 const embeddings = new HuggingFaceInferenceEmbeddings({
   apiKey: process.env.HF_TOKEN,
-  provider: 'hf-inference',
   model: 'ibm-granite/granite-embedding-small-english-r2',
 })
 
@@ -23,12 +21,13 @@ const embeddings = new HuggingFaceInferenceEmbeddings({
 async function testEmbeddings() {
   console.log('=== LangChain Embeddings Wrapper ===\n')
 
-  // embedDocuments: embed multiple texts at once (for storing)
-  const docVectors = await embeddings.embedDocuments(['JavaScript runs on the server with Node.js', 'Paris is the capital of France'])
+  const docVectors = await embeddings.embedDocuments([
+    'JavaScript runs on the server with Node.js',
+    'Paris is the capital of France',
+  ])
   console.log('Embedded 2 documents')
   console.log('Vector dimensions:', docVectors[0].length)
 
-  // embedQuery: embed a single query (for searching)
   const queryVector = await embeddings.embedQuery('server-side JavaScript')
   console.log('Query vector dimensions:', queryVector.length)
   console.log('First 5 values:', queryVector.slice(0, 5))
@@ -39,7 +38,6 @@ async function testEmbeddings() {
 async function basicVectorStore() {
   console.log('=== MemoryVectorStore ===\n')
 
-  // Same documents from Lesson 1
   const documents = [
     'JavaScript was created by Brendan Eich in 1995 at Netscape.',
     'Python is a popular language for data science and machine learning.',
@@ -49,23 +47,16 @@ async function basicVectorStore() {
     'The Great Wall of China is over 13,000 miles long.',
   ]
 
-  // Create the store and add documents in one step.
-  // fromTexts() does three things:
-  //   1. Calls embeddings.embedDocuments() on all texts
-  //   2. Stores the vectors + original text
-  //   3. Returns a ready-to-query store
   const store = await MemoryVectorStore.fromTexts(
     documents,
-    documents.map((_, i) => ({ id: i })), // metadata for each doc (we'll explore this later)
+    documents.map((_, i) => ({ id: i })),
     embeddings,
   )
 
   console.log('Stored %d documents\n', documents.length)
 
-  // --- Similarity search ---
-  // Compare this to Lesson 1: no manual embed → compare → sort loop!
   const query = 'server-side JavaScript'
-  const results = await store.similaritySearchWithScore(query, 3) // k=3: top 3 results
+  const results = await store.similaritySearchWithScore(query, 3)
 
   console.log(`Query: "${query}" (top 3)\n`)
   for (const [doc, score] of results) {
@@ -79,8 +70,6 @@ async function basicVectorStore() {
 async function metadataAndFiltering() {
   console.log('=== Metadata & Filtering ===\n')
 
-  // In real apps, documents come from files, URLs, databases.
-  // Metadata tracks the source so you can tell the user WHERE the answer came from.
   const store = await MemoryVectorStore.fromTexts(
     [
       'JavaScript was created by Brendan Eich in 1995.',
@@ -101,7 +90,6 @@ async function metadataAndFiltering() {
     embeddings,
   )
 
-  // Search WITHOUT filter — returns best matches regardless of language
   const query = 'web framework'
   console.log(`Query: "${query}" — no filter (top 4)\n`)
   const allResults = await store.similaritySearchWithScore(query, 4)
@@ -109,7 +97,6 @@ async function metadataAndFiltering() {
     console.log(`  ${score.toFixed(3)}  [${doc.metadata.language}] ${doc.pageContent}`)
   }
 
-  // Search WITH filter — only Python documents
   console.log(`\nQuery: "${query}" — filter: python only (top 4)\n`)
   const pythonOnly = await store.similaritySearchWithScore(
     query,
@@ -121,10 +108,108 @@ async function metadataAndFiltering() {
   }
 }
 
+// --- Adding Documents Incrementally ---
+
+async function incrementalDocuments() {
+  console.log('=== Incremental Documents & The Document Object ===\n')
+
+  // Create an EMPTY store — no documents yet
+  const store = new MemoryVectorStore(embeddings)
+
+  // In LangChain, everything is a Document: { pageContent, metadata }
+  // fromTexts() created these for you behind the scenes.
+  // Now we build them explicitly.
+
+  const batch1 = [
+    new Document({
+      pageContent: 'LangChain is a framework for building LLM applications.',
+      metadata: { source: 'intro.md', section: 'overview' },
+    }),
+    new Document({
+      pageContent: 'Chains connect multiple LLM calls into a pipeline.',
+      metadata: { source: 'intro.md', section: 'concepts' },
+    }),
+  ]
+
+  // addDocuments embeds and stores them
+  await store.addDocuments(batch1)
+  console.log('Added batch 1: %d docs', batch1.length)
+
+  // Later, more documents arrive — just add them to the same store
+  const batch2 = [
+    new Document({
+      pageContent: 'Agents use LLMs to decide which tools to call.',
+      metadata: { source: 'agents.md', section: 'overview' },
+    }),
+    new Document({
+      pageContent: 'RAG retrieves relevant documents before generating an answer.',
+      metadata: { source: 'rag.md', section: 'overview' },
+    }),
+  ]
+
+  await store.addDocuments(batch2)
+  console.log('Added batch 2: %d docs', batch2.length)
+  console.log('Total docs in store: %d\n', store.memoryVectors.length)
+
+  // Search across ALL documents (both batches)
+  const results = await store.similaritySearchWithScore('how do agents work', 2)
+  console.log('Query: "how do agents work" (top 2)\n')
+  for (const [doc, score] of results) {
+    console.log(`  ${score.toFixed(3)}  [${doc.metadata.source}] ${doc.pageContent}`)
+  }
+}
+
+// --- asRetriever(): The Bridge to RAG Chains ---
+
+async function retrieverDemo() {
+  console.log('=== asRetriever() ===\n')
+
+  const store = await MemoryVectorStore.fromTexts(
+    [
+      'Embeddings convert text into numerical vectors.',
+      'Vector stores index embeddings for fast similarity search.',
+      'Retrievers fetch relevant documents given a query.',
+      'Chains connect retrievers and LLMs into a pipeline.',
+      'RAG means Retrieval-Augmented Generation.',
+      'Agents decide which tools to call at runtime.',
+    ],
+    [
+      { topic: 'embeddings' },
+      { topic: 'vector-stores' },
+      { topic: 'retrievers' },
+      { topic: 'chains' },
+      { topic: 'rag' },
+      { topic: 'agents' },
+    ],
+    embeddings,
+  )
+
+  // asRetriever(k) wraps the store in a Retriever interface.
+  // A retriever has ONE method: invoke(query) → Document[]
+  // No scores, no options — just "give me the top k relevant docs."
+  // This simplicity is what makes it pluggable into chains.
+  const retriever = store.asRetriever(3)
+
+  const docs = await retriever.invoke('What is RAG and how does retrieval work?')
+
+  console.log('Retriever returned %d documents:\n', docs.length)
+  for (const doc of docs) {
+    console.log(`  [${doc.metadata.topic}] ${doc.pageContent}`)
+  }
+
+  // Compare: similaritySearch returns [doc, score] tuples — more control.
+  // Retriever returns just docs — simpler, chain-friendly.
+  console.log('\n--- Why this matters ---')
+  console.log('similaritySearchWithScore() → for exploration, debugging, seeing scores')
+  console.log('asRetriever().invoke()       → for plugging into chains (RAG pipeline)')
+}
+
 async function main() {
-  await basicVectorStore()
-  console.log('\n')
-  await metadataAndFiltering()
+  // await testEmbeddings()
+  // await basicVectorStore()
+  // await metadataAndFiltering()
+  // await incrementalDocuments()
+  await retrieverDemo()
 }
 
 main().catch(console.error)

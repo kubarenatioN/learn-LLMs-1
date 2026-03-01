@@ -15,6 +15,7 @@
 - Auth: HuggingFace token in `.env` as `HF_TOKEN`
 - Structure: `phase-1/`, `phase-2/`, `phase-3/` folders with lesson files, `study-notes/` folder with per-phase markdown
 - Always comment "passed" lesson blocks inside main() function and leave only the current studied function calls
+- Use hf-inference as model provider explicitly
 
 ## Course plan
 
