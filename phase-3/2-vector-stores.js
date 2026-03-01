@@ -5,9 +5,9 @@
  * LangChain abstracts embedding + storage + search into one clean API.
  */
 
+import { MemoryVectorStore } from '@langchain/classic/vectorstores/memory'
 import { HuggingFaceInferenceEmbeddings } from '@langchain/community/embeddings/hf'
 import { Document } from '@langchain/core/documents'
-import { MemoryVectorStore } from '@langchain/classic/vectorstores/memory'
 import 'dotenv/config'
 
 // --- LangChain Embeddings Wrapper ---
@@ -21,10 +21,7 @@ const embeddings = new HuggingFaceInferenceEmbeddings({
 async function testEmbeddings() {
   console.log('=== LangChain Embeddings Wrapper ===\n')
 
-  const docVectors = await embeddings.embedDocuments([
-    'JavaScript runs on the server with Node.js',
-    'Paris is the capital of France',
-  ])
+  const docVectors = await embeddings.embedDocuments(['JavaScript runs on the server with Node.js', 'Paris is the capital of France'])
   console.log('Embedded 2 documents')
   console.log('Vector dimensions:', docVectors[0].length)
 
@@ -98,11 +95,7 @@ async function metadataAndFiltering() {
   }
 
   console.log(`\nQuery: "${query}" — filter: python only (top 4)\n`)
-  const pythonOnly = await store.similaritySearchWithScore(
-    query,
-    4,
-    (doc) => doc.metadata.language === 'python',
-  )
+  const pythonOnly = await store.similaritySearchWithScore(query, 4, (doc) => doc.metadata.language === 'python')
   for (const [doc, score] of pythonOnly) {
     console.log(`  ${score.toFixed(3)}  [${doc.metadata.language}] ${doc.pageContent}`)
   }
@@ -159,57 +152,11 @@ async function incrementalDocuments() {
   }
 }
 
-// --- asRetriever(): The Bridge to RAG Chains ---
-
-async function retrieverDemo() {
-  console.log('=== asRetriever() ===\n')
-
-  const store = await MemoryVectorStore.fromTexts(
-    [
-      'Embeddings convert text into numerical vectors.',
-      'Vector stores index embeddings for fast similarity search.',
-      'Retrievers fetch relevant documents given a query.',
-      'Chains connect retrievers and LLMs into a pipeline.',
-      'RAG means Retrieval-Augmented Generation.',
-      'Agents decide which tools to call at runtime.',
-    ],
-    [
-      { topic: 'embeddings' },
-      { topic: 'vector-stores' },
-      { topic: 'retrievers' },
-      { topic: 'chains' },
-      { topic: 'rag' },
-      { topic: 'agents' },
-    ],
-    embeddings,
-  )
-
-  // asRetriever(k) wraps the store in a Retriever interface.
-  // A retriever has ONE method: invoke(query) → Document[]
-  // No scores, no options — just "give me the top k relevant docs."
-  // This simplicity is what makes it pluggable into chains.
-  const retriever = store.asRetriever(3)
-
-  const docs = await retriever.invoke('What is RAG and how does retrieval work?')
-
-  console.log('Retriever returned %d documents:\n', docs.length)
-  for (const doc of docs) {
-    console.log(`  [${doc.metadata.topic}] ${doc.pageContent}`)
-  }
-
-  // Compare: similaritySearch returns [doc, score] tuples — more control.
-  // Retriever returns just docs — simpler, chain-friendly.
-  console.log('\n--- Why this matters ---')
-  console.log('similaritySearchWithScore() → for exploration, debugging, seeing scores')
-  console.log('asRetriever().invoke()       → for plugging into chains (RAG pipeline)')
-}
-
 async function main() {
   // await testEmbeddings()
   // await basicVectorStore()
   // await metadataAndFiltering()
-  // await incrementalDocuments()
-  await retrieverDemo()
+  await incrementalDocuments()
 }
 
 main().catch(console.error)

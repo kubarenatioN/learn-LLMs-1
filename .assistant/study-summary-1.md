@@ -36,14 +36,15 @@ Full plan in `course-plan.md`. Five phases: Foundations → LangChain Core → R
 - **Lesson 3:** Sequential chains, `RunnableLambda` as adapter between incompatible steps, `RunnableSequence.from([])`, accumulating state pattern (`{ ...input, newField }`).
 - **Lesson 4:** Memory — LLMs are stateless, "memory" = sending full conversation history. Manual array approach, `InMemoryChatMessageHistory`, `trimMessages` for window memory (keep recent, drop old). Three strategies: full history, window, summary.
 
-### Phase 3: RAG (1 lesson done, in progress)
+### Phase 3: RAG (2 lessons done, in progress)
 
 - **Lesson 1:** Embeddings via `hf.featureExtraction()` with `ibm-granite/granite-embedding-small-english-r2` and `provider: 'hf-inference'`. Manual cosine similarity. Semantic search ranking documents by relevance. HuggingFace `/v1` router doesn't support `/v1/embeddings` — only chat completions.
+- **Lesson 2:** Vector stores. `HuggingFaceInferenceEmbeddings` as LangChain wrapper (`embedDocuments`, `embedQuery`). `MemoryVectorStore` from `@langchain/classic/vectorstores/memory` (moved from `langchain/`). `fromTexts()` for one-step create+store. `similaritySearchWithScore(query, k)` replaces manual cosine loop. `Document` object (`pageContent` + `metadata`). Incremental `addDocuments()`. Metadata filtering with function predicate. `asRetriever(k)` converts store to chain-friendly retriever (`invoke(query) → Document[]`). Student extracted `asRetriever` demo into separate file `2-as-retriever.js`.
 
 ## What's next
 
-- Phase 3, Lesson 2: Vector stores (in-memory, then persistent)
-- Phase 3, Lessons 3-4: Document loaders, text splitters, retrieval chains, conversational RAG
+- Phase 3, Lesson 3: Document loaders & text splitters
+- Phase 3, Lessons 4-6: Retrieval chains, conversational RAG
 - Phase 4: Agents & Tools
 - Phase 5: Building real applications
 
@@ -55,3 +56,4 @@ Full plan in `course-plan.md`. Five phases: Foundations → LangChain Core → R
 - Default chat model used: `Qwen/Qwen2.5-7B-Instruct`
 - Default embedding model: `ibm-granite/granite-embedding-small-english-r2` (384 dimensions)
 - `--legacy-peer-deps` needed for npm installs due to dotenv v17 vs peer dep conflicts
+- `MemoryVectorStore` moved from `langchain/vectorstores/memory` to `@langchain/classic/vectorstores/memory` — `ERR_PACKAGE_PATH_NOT_EXPORTED` means the subpath no longer exists in the package
