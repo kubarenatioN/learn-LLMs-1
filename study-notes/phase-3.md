@@ -101,3 +101,35 @@
 **`fromDocuments` vs `fromTexts`:**
 - `fromDocuments(docs, embeddings)` — takes Document objects directly (metadata already attached)
 - `fromTexts(texts, metadatas, embeddings)` — takes plain strings + separate metadata array
+
+---
+
+### Lesson 4 — Retrieval Chains
+
+**This is RAG** — the complete loop: question → retrieve → augment prompt → generate answer.
+
+**Manual RAG (step by step):**
+1. `retriever.invoke(query)` → get relevant Document chunks
+2. Join chunks into one context string: `docs.map(d => d.pageContent).join('\n\n')`
+3. Inject context + question into a prompt template
+4. `prompt.pipe(llm).pipe(parser)` → answer grounded in your documents
+
+**The RAG prompt pattern:**
+- "Answer based ONLY on the following context" — constrains the LLM to your docs
+- "If the context doesn't contain the answer, say I don't have enough information" — prevents hallucination
+- Tested: LLM refused to answer "capital of Japan" because it wasn't in the docs, even though it knows the answer
+
+**Chain-based RAG with `RunnablePassthrough.assign()`:**
+- `RunnablePassthrough.assign({ context: ... })` — passes input through AND adds new fields
+- Retrieval pipeline: `RunnableLambda(input → question).pipe(retriever).pipe(formatDocs)`
+- Full chain: `passthrough.assign({context}).pipe(prompt).pipe(llm).pipe(parser)`
+- Single `.invoke({ question })` — question in, answer out
+
+**RAG with sources — chained `.assign()` calls:**
+- First `.assign({ docs })` — retrieves documents, keeps them in pipeline
+- Second `.assign({ context })` — formats docs to string, `docs` still available
+- Third `.assign({ answer })` — generates answer from context + question
+- Final output: `{ question, docs, context, answer }` — answer + citations
+- Sources show file path + line numbers from `doc.metadata.loc.lines`
+
+**Multiple files:** `buildVectorStore()` loads multiple files, splits each, combines all chunks into one store. Queries search across all documents automatically.
