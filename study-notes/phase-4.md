@@ -44,13 +44,29 @@
 - `MAX_STEPS` safety limit prevents infinite loops
 - Messages array IS the agent's memory within one task
 
-**`createToolCallingAgent` + `AgentExecutor` from `@langchain/classic/agents`:**
+**Legacy: `createToolCallingAgent` + `AgentExecutor` from `@langchain/classic/agents` (DEPRECATED):**
 - Prompt requires `{input}` and `MessagesPlaceholder('agent_scratchpad')`
 - `agent_scratchpad` = accumulated intermediate steps (tool calls + results) — same as our manual messages array
 - `createToolCallingAgent({ llm, tools, prompt })` — creates the agent brain
 - `AgentExecutor({ agent, tools, maxIterations })` — runs the loop automatically
 - Single `.invoke({ input })` → returns `{ output }` with the final answer
 - `verbose: true` shows full reasoning (extremely detailed); `verbose: false` for clean output
+- Deprecated since LangChain v1.0 (October 2025) — still works from `@langchain/classic` but not maintained
+
+**Modern: `createAgent` from `"langchain"` (CURRENT):**
+- `import { createAgent } from "langchain"` — the new single entry point
+- Replaces both `AgentExecutor` and `createReactAgent` from `@langchain/langgraph/prebuilt`
+- `createAgent({ model, tools, systemPrompt })` — much simpler setup
+- `model` — accepts a `ChatModel` instance OR a string like `"openai:gpt-4o"` for auto-init
+- `systemPrompt` — just a plain string (no prompt template, no `{input}`, no `{agent_scratchpad}`)
+- Messages-based I/O: `agent.invoke({ messages: [{ role: 'user', content: query }] })`
+- Output: `result.messages` array — last message is the final answer
+- Messages count reveals steps: 4 messages = tool was used (Human → AI tool_call → Tool result → AI answer), 2 messages = direct answer (Human → AI answer)
+
+**LangChain vs LangGraph — they're layers, not competitors:**
+- LangChain = foundation (LLM wrappers, prompts, parsers, tools, chains, RAG components)
+- LangGraph = orchestration on top (agent loops as graphs, state management, memory, human-in-the-loop)
+- `createAgent` from `"langchain"` wraps LangGraph internally — you get both
 
 **Agent behaviors observed:**
 - LLM can request multiple tools in parallel in one step

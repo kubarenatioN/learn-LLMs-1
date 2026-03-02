@@ -171,10 +171,52 @@ async function multiQueryAgent() {
   }
 }
 
+// --- Modern API: createAgent from "langchain" ---
+
+async function modernAgent() {
+  console.log('=== createAgent (Modern API) ===\n')
+
+  // createAgent replaces both createToolCallingAgent + AgentExecutor (legacy)
+  // and createReactAgent from @langchain/langgraph/prebuilt (also deprecated).
+  // Import from "langchain" directly — the new single entry point.
+  const { createAgent } = await import('langchain')
+
+  // Much simpler setup:
+  //   model — accepts a ChatModel instance or a string like "openai:gpt-4o"
+  //   tools — same tool() definitions as before
+  //   systemPrompt — a plain string (becomes the system message)
+  const agent = createAgent({
+    model: llm,
+    tools,
+    systemPrompt: 'You are a helpful assistant. Use tools when needed. Be concise.',
+  })
+
+  // Input/output use a `messages` array (not `input`/`output` strings)
+  const queries = [
+    'What is the weather in Tokyo?',
+    'What is 2 to the power of 10?',
+    'If it is 24°C in Tokyo and 12°C in London, what is the average?',
+    'What is the meaning of life?',
+  ]
+
+  for (const query of queries) {
+    console.log('Q: %s', query)
+
+    const result = await agent.invoke({
+      messages: [{ role: 'user', content: query }],
+    })
+
+    const lastMessage = result.messages[result.messages.length - 1]
+    console.log('A: %s\n', lastMessage.content)
+    console.log('(messages count): %d\n', result.messages.length)
+  }
+}
+
 async function main() {
   // await manualAgentLoop()
   // await agentExecutorDemo()
-  await multiQueryAgent()
+  // await multiQueryAgent()
+  await modernAgent()
 }
 
 main().catch(console.error)

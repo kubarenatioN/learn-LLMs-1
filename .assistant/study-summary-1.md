@@ -11,7 +11,7 @@
 ## Project setup
 
 - Workspace: Node.js project with `"type": "module"` (ES imports)
-- Dependencies: `dotenv`, `@huggingface/inference`, `langchain`, `@langchain/core`, `@langchain/community`, `@langchain/openai`, `zod`
+- Dependencies: `dotenv`, `@huggingface/inference`, `langchain`, `@langchain/core`, `@langchain/community`, `@langchain/openai`, `@langchain/langgraph`, `zod`
 - Auth: HuggingFace token in `.env` as `HF_TOKEN`
 - Structure: `phase-1/`, `phase-2/`, `phase-3/` folders with lesson files, `study-notes/` folder with per-phase markdown
 - Always comment "passed" lesson blocks inside main() function and leave only the current studied function calls
@@ -47,7 +47,7 @@ Full plan in `course-plan.md`. Five phases: Foundations → LangChain Core → R
 ### Phase 4: Agents & Tools (2 lessons done, in progress)
 
 - **Lesson 1:** Tools & tool calling. `tool(fn, {name, description, schema})` from `@langchain/core/tools` — Zod schemas for input. `llm.bindTools([...])` sends metadata to LLM. LLM decides per-query: tool call vs direct answer. Full loop: LLM returns `tool_calls` → code executes tools → `ToolMessage({ content, tool_call_id })` → send back to LLM → final answer. LLM can request multiple tools in one turn. Tool calling is a protocol, not execution.
-- **Lesson 2:** Agents & ReAct. Manual agent loop: while + tool_calls check + MAX_STEPS. `createToolCallingAgent` + `AgentExecutor` from `@langchain/classic/agents`. Prompt needs `{input}` + `MessagesPlaceholder('agent_scratchpad')`. `verbose: true` for debugging, `false` for clean output. LLM can call multiple tools in parallel, skip tools for simple tasks, recover from tool errors. Student discovered tool description engineering: specifying "must be JavaScript" fixed `arccos` → `Math.acos`.
+- **Lesson 2:** Agents & ReAct. Manual agent loop: while + tool_calls check + MAX_STEPS. Legacy: `createToolCallingAgent` + `AgentExecutor` from `@langchain/classic/agents` (deprecated since v1.0 Oct 2025). Modern: `createAgent` from `"langchain"` — `createAgent({ model, tools, systemPrompt })`, messages-based I/O. Student noticed AgentExecutor missing from official docs, prompted migration to modern API. LangChain = foundation layer, LangGraph = orchestration layer, `createAgent` wraps both. Tool description engineering: "must be JavaScript" fixed `arccos` → `Math.acos`.
 
 ## What's next
 
@@ -64,3 +64,5 @@ Full plan in `course-plan.md`. Five phases: Foundations → LangChain Core → R
 - Default embedding model: `ibm-granite/granite-embedding-small-english-r2` (384 dimensions)
 - `--legacy-peer-deps` needed for npm installs due to dotenv v17 vs peer dep conflicts
 - `MemoryVectorStore` moved from `langchain/vectorstores/memory` to `@langchain/classic/vectorstores/memory` — `ERR_PACKAGE_PATH_NOT_EXPORTED` means the subpath no longer exists in the package
+- `AgentExecutor` + `createToolCallingAgent` deprecated since LangChain v1.0 (Oct 2025). Modern: `import { createAgent } from "langchain"`. Uses `model` (not `llm`), `systemPrompt` (not prompt template), messages-based I/O
+- LangChain ecosystem structure: `langchain` (main entry + agents), `@langchain/core` (primitives), `@langchain/openai` (provider), `@langchain/community` (integrations), `@langchain/classic` (legacy/deprecated), `@langchain/langgraph` (graph orchestration)
