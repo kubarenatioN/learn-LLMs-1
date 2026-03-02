@@ -44,9 +44,14 @@ Full plan in `course-plan.md`. Five phases: Foundations → LangChain Core → R
 - **Lesson 4:** Retrieval chains. Manual RAG: retrieve → format context → inject into prompt → LLM answers. RAG prompt pattern: "Answer ONLY based on context" prevents hallucination (tested: LLM refused "capital of Japan"). Chain-based RAG with `RunnablePassthrough.assign()` — single `.invoke({ question })`. RAG with sources: chained `.assign()` keeps `docs` in pipeline alongside `answer`, enabling source citations with file + line numbers. `buildVectorStore()` loads multiple files into one store.
 - **Lesson 5:** Conversational RAG. Problem: follow-ups fail without memory ("What types are there?" has no context). Solution: question rephrasing — LLM rewrites follow-ups into standalone questions using `MessagesPlaceholder('history')`. Full flow: rephrase → retrieve → answer → update history. Original question stored in history (not rephrased). Topic switches and grounding both work in conversational mode. Student added extra negative test ("How many sugars in coke?" → "I don't have enough information").
 
+### Phase 4: Agents & Tools (1 lesson done, in progress)
+
+- **Lesson 1:** Tools & tool calling. `tool(fn, {name, description, schema})` from `@langchain/core/tools` — Zod schemas for input. `llm.bindTools([...])` sends metadata to LLM. LLM decides per-query: tool call vs direct answer. Full loop: LLM returns `tool_calls` → code executes tools → `ToolMessage({ content, tool_call_id })` → send back to LLM → final answer. LLM can request multiple tools in one turn. Tool calling is a protocol, not execution.
+
 ## What's next
 
-- Phase 4: Agents & Tools
+- Phase 4, Lesson 2: Agents (ReAct pattern, multi-step reasoning with AgentExecutor)
+- Phase 4, Lessons 3-5: Custom tools, agent memory, error handling
 - Phase 5: Building real applications
 
 ## Key technical notes
