@@ -30,3 +30,34 @@
 4. LLM now has tool results → composes final natural language answer
 
 **Key insight:** tool calling is a PROTOCOL, not execution. The LLM says "I want to call X with Y." Your code actually runs it. This separation is what makes it safe and controllable.
+
+---
+
+### Lesson 2 — Agents & the ReAct Pattern
+
+**ReAct = Reasoning + Acting** — an automated loop:
+1. LLM reasons about what to do → 2. Calls a tool → 3. Observes result → 4. Repeats until done
+
+**Manual agent loop (built from scratch):**
+- `while` loop: invoke LLM → check `tool_calls` → execute tools → add `ToolMessage` to messages → repeat
+- Break when LLM returns content with no `tool_calls` (final answer)
+- `MAX_STEPS` safety limit prevents infinite loops
+- Messages array IS the agent's memory within one task
+
+**`createToolCallingAgent` + `AgentExecutor` from `@langchain/classic/agents`:**
+- Prompt requires `{input}` and `MessagesPlaceholder('agent_scratchpad')`
+- `agent_scratchpad` = accumulated intermediate steps (tool calls + results) — same as our manual messages array
+- `createToolCallingAgent({ llm, tools, prompt })` — creates the agent brain
+- `AgentExecutor({ agent, tools, maxIterations })` — runs the loop automatically
+- Single `.invoke({ input })` → returns `{ output }` with the final answer
+- `verbose: true` shows full reasoning (extremely detailed); `verbose: false` for clean output
+
+**Agent behaviors observed:**
+- LLM can request multiple tools in parallel in one step
+- LLM may skip tools when it can answer from its own knowledge (e.g., simple math, philosophical questions)
+- LLM can recover from tool errors by falling back to its training data
+
+**Tool description engineering:**
+- Tool description is the LLM's only instruction manual
+- Specifying "expression MUST be formatted for JavaScript" fixed `arccos` → `Math.acos` errors
+- The `.describe()` on Zod fields also helps the LLM generate correct arguments
