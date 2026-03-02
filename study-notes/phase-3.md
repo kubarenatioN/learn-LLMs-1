@@ -133,3 +133,30 @@
 - Sources show file path + line numbers from `doc.metadata.loc.lines`
 
 **Multiple files:** `buildVectorStore()` loads multiple files, splits each, combines all chunks into one store. Queries search across all documents automatically.
+
+---
+
+### Lesson 5 — Conversational RAG
+
+**The problem:** each RAG query is independent — follow-up questions like "What types are there?" fail because the retriever doesn't know what "there" refers to from the previous turn.
+
+**Solution: question rephrasing** — use the LLM to rewrite follow-ups into standalone questions before retrieval.
+- "What types are there?" + history about streams → "What types of streams are there in Node.js?"
+- "How do they decide?" + history about agents → "How do LangChain agents decide what to do?"
+
+**Rephrase prompt pattern:**
+- `MessagesPlaceholder('history')` — injects conversation history as HumanMessage/AIMessage
+- System instruction: "Rephrase the follow-up into a standalone question. Return ONLY the question."
+- Chain: `rephrasePrompt.pipe(llm).pipe(StringOutputParser)`
+
+**Full conversational RAG flow inside `ask()`:**
+1. **Rephrase** — if history exists, rephrase; otherwise use question as-is
+2. **Retrieve** — search vector store with the standalone question
+3. **Answer** — RAG prompt with context + standalone question → LLM generates answer
+4. **Update history** — push `HumanMessage(original question)` + `AIMessage(answer)` to history array
+
+**Key design decisions:**
+- Store the ORIGINAL question in history (not the rephrased one) — keeps conversation natural
+- Only rephrase when there IS history — first question doesn't need it
+- History grows with each turn — enables multi-step follow-ups and topic switches
+- Grounding ("Answer ONLY based on context") still works in conversational mode — unrelated questions get "I don't have enough information"
