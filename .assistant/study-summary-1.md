@@ -44,14 +44,14 @@ Full plan in `course-plan.md`. Five phases: Foundations → LangChain Core → R
 - **Lesson 4:** Retrieval chains. Manual RAG: retrieve → format context → inject into prompt → LLM answers. RAG prompt pattern: "Answer ONLY based on context" prevents hallucination (tested: LLM refused "capital of Japan"). Chain-based RAG with `RunnablePassthrough.assign()` — single `.invoke({ question })`. RAG with sources: chained `.assign()` keeps `docs` in pipeline alongside `answer`, enabling source citations with file + line numbers. `buildVectorStore()` loads multiple files into one store.
 - **Lesson 5:** Conversational RAG. Problem: follow-ups fail without memory ("What types are there?" has no context). Solution: question rephrasing — LLM rewrites follow-ups into standalone questions using `MessagesPlaceholder('history')`. Full flow: rephrase → retrieve → answer → update history. Original question stored in history (not rephrased). Topic switches and grounding both work in conversational mode. Student added extra negative test ("How many sugars in coke?" → "I don't have enough information").
 
-### Phase 4: Agents & Tools (2 lessons done, in progress)
+### Phase 4: Agents & Tools (3 lessons done, in progress)
 
 - **Lesson 1:** Tools & tool calling. `tool(fn, {name, description, schema})` from `@langchain/core/tools` — Zod schemas for input. `llm.bindTools([...])` sends metadata to LLM. LLM decides per-query: tool call vs direct answer. Full loop: LLM returns `tool_calls` → code executes tools → `ToolMessage({ content, tool_call_id })` → send back to LLM → final answer. LLM can request multiple tools in one turn. Tool calling is a protocol, not execution.
 - **Lesson 2:** Agents & ReAct. Manual agent loop: while + tool_calls check + MAX_STEPS. Legacy: `createToolCallingAgent` + `AgentExecutor` from `@langchain/classic/agents` (deprecated since v1.0 Oct 2025). Modern: `createAgent` from `"langchain"` — `createAgent({ model, tools, systemPrompt })`, messages-based I/O. Student noticed AgentExecutor missing from official docs, prompted migration to modern API. LangChain = foundation layer, LangGraph = orchestration layer, `createAgent` wraps both. Tool description engineering: "must be JavaScript" fixed `arccos` → `Math.acos`.
+- **Lesson 3:** Custom tools — real tools that interact with the outside world. Web Fetcher: `fetch()` + HTML stripping + truncation + timeout via `AbortSignal.timeout()`. File Reader: sandboxed to allowed directory, `path.resolve()` + startsWith guard blocks path traversal (`../../.env` → denied), `stat.size` prevents huge files. Key design principles: return error strings (not exceptions) so the LLM can reason about failures; validate inputs with Zod; constrain scope (timeouts, size limits, directory sandbox); list available files in tool description since it's the LLM's only documentation. Multi-tool agent with `createAgent` picks the right tool per query and gracefully handles tool errors.
 
 ## What's next
 
-- Phase 4, Lesson 3: Custom tools (building real, useful tools)
 - Phase 4, Lessons 4-5: Agent memory & planning, error handling & guardrails
 - Phase 5: Building real applications
 

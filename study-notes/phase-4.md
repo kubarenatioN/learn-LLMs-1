@@ -77,3 +77,34 @@
 - Tool description is the LLM's only instruction manual
 - Specifying "expression MUST be formatted for JavaScript" fixed `arccos` → `Math.acos` errors
 - The `.describe()` on Zod fields also helps the LLM generate correct arguments
+
+---
+
+### Lesson 3 — Custom Tools (Real Tools)
+
+**From fake to real:** Lessons 1-2 used hardcoded data. Real agents need tools that interact with the outside world — network, filesystem, APIs.
+
+**Web Fetcher tool — design decisions:**
+- `fetch()` with `AbortSignal.timeout(10_000)` — always set a timeout; network requests can hang forever
+- Strip HTML (scripts, styles, tags) → give the LLM clean text, not raw markup
+- Truncate output — web pages are 50-100k chars; LLM context is finite. Trade-off: more chars = better analysis, fewer chars = fits more tool results
+- Return error strings, never throw — `"Fetch failed: ..."` lets the LLM reason about the failure and adapt
+- `.url()` Zod validator — catches malformed URLs before making the request
+
+**File Reader tool — guardrails pattern:**
+- **Allowlist a base directory** — `path.resolve(ALLOWED_DIR, filename)`, then verify the resolved path starts with `ALLOWED_DIR`
+- **Path traversal protection** — `../../.env` resolves to a path outside the allowed dir → blocked
+- **File size limit** — `stat.size` check prevents sending massive files to the LLM
+- **Hardcoded file list in description** — the LLM only sees tool descriptions, so listing available files there helps it know what to request. In production, use a separate `list_files` tool.
+- **Graceful errors** — `ENOENT` → `"File not found"`, not a crash. The agent receives the error text and reports it to the user.
+
+**Multi-tool agent — combining tools:**
+- Pass both tools to `createAgent({ model, tools: [...], systemPrompt })`
+- The agent reads all tool descriptions and picks the right one per query
+- Agent gracefully handles tool errors (e.g., file not found) — reports the issue to the user instead of crashing
+
+**Key design principles for custom tools:**
+1. **Return strings, not exceptions** — the LLM can reason about error text
+2. **Validate inputs with Zod** — catch bad args before they cause runtime errors
+3. **Constrain scope** — sandbox file access, set timeouts, truncate output
+4. **Descriptive metadata** — the description is the LLM's only documentation for your tool
