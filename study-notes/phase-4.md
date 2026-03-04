@@ -128,3 +128,42 @@
 - Core pattern for multi-user apps: one agent, many threads, no state leakage
 
 **MemorySaver is in-memory only** — data is lost when the process exits. For persistence across restarts, you'd use database-backed checkpointers (Postgres, SQLite, Redis). Same API, different storage backend.
+
+---
+
+### Lesson 5 — Error Handling & Guardrails
+
+**Default error behavior in `createAgent`:**
+- Modern `createAgent` (LangGraph-based) catches tool exceptions internally by default
+- Error message is passed back to the LLM as a tool result — LLM can recover gracefully
+- Without retries, the LLM falls back to training data (may hallucinate)
+
+**`toolRetryMiddleware` — automatic retries with backoff:**
+- `import { toolRetryMiddleware } from "langchain"` — pass in `middleware` array of `createAgent`
+- `maxRetries` — how many additional attempts after first failure
+- `initialDelayMs` / `backoffFactor` — exponential backoff (100ms → 200ms → 400ms)
+- `onFailure: 'continue'` — if all retries exhausted, pass error to LLM (graceful). `'error'` throws instead.
+- Transparent to the LLM — it never sees the retries, just gets the successful result
+
+**`modelCallLimitMiddleware` — preventing infinite loops:**
+- `runLimit` — max LLM calls per single `.invoke()` (prevents loop within one task)
+- `threadLimit` — max LLM calls across entire conversation (cost budget)
+- `exitBehavior: 'end'` — gracefully stops and returns current state. `'error'` throws.
+- Essential for agents with tools that can trick the LLM into looping ("call me again")
+
+**`toolCallLimitMiddleware` — also available:**
+- Limits how many times a specific tool (or all tools) can be called
+- Per-run and per-thread limits, same pattern as model call limit
+
+**System prompt guardrails — behavioral constraints:**
+- Explicit rules in the system prompt: what to answer, what to decline, how to handle missing data
+- "Do NOT make up data" prevents hallucination when tools return no results
+- Topic restrictions ("ONLY answer weather questions") keep the agent focused
+- System prompt is the first line of defense — middleware handles mechanical failures, system prompt handles behavioral ones
+
+**Layers of defense (inner to outer):**
+1. **Zod schemas** — validate tool inputs at the schema level
+2. **Tool-level error handling** — return error strings, not exceptions
+3. **Middleware** — retries, call limits, cost budgets
+4. **System prompt** — behavioral rules, topic restrictions, honesty constraints
+5. **Application-level** — try/catch around `.invoke()`, timeouts, logging
