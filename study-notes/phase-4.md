@@ -108,3 +108,23 @@
 2. **Validate inputs with Zod** — catch bad args before they cause runtime errors
 3. **Constrain scope** — sandbox file access, set timeouts, truncate output
 4. **Descriptive metadata** — the description is the LLM's only documentation for your tool
+
+---
+
+### Lesson 4 — Agent Memory
+
+**The stateless problem:** each `agent.invoke()` starts fresh — no knowledge of previous interactions. Follow-up questions like "the previous city" cause hallucinations (the agent invents data rather than admitting it doesn't know).
+
+**`MemorySaver` from `@langchain/langgraph`:**
+- In-memory checkpointer — stores full conversation state (messages + tool call history)
+- Pass to `createAgent({ ..., checkpointer: memory })`
+- Automatic — you send only the new message per `.invoke()`, the checkpointer handles history accumulation
+
+**Thread-based conversations via `thread_id`:**
+- Pass `{ configurable: { thread_id: 'some-id' } }` as the second argument to `.invoke()`
+- Same `thread_id` = continued conversation (agent remembers everything)
+- Different `thread_id` = fresh, isolated conversation
+- One agent instance can serve many parallel conversations — each thread is independent
+- Core pattern for multi-user apps: one agent, many threads, no state leakage
+
+**MemorySaver is in-memory only** — data is lost when the process exits. For persistence across restarts, you'd use database-backed checkpointers (Postgres, SQLite, Redis). Same API, different storage backend.
