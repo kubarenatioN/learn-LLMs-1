@@ -29,3 +29,134 @@
 **Why semantic beats keyword search:**
 - "JavaScript backend" matches "JavaScript server side" (different words, same meaning)
 - Unrelated topics (geography) score low regardless of shared words
+
+---
+
+### Lesson 2 — Vector Stores
+
+**Why vector stores?** — manual cosine similarity doesn't scale. Vector stores handle embedding storage, indexing, and fast similarity search in one place.
+
+**LangChain embeddings wrapper** — `HuggingFaceInferenceEmbeddings` from `@langchain/community/embeddings/hf`
+- Wraps `hf.featureExtraction()` in LangChain's interface (`embedDocuments()`, `embedQuery()`)
+- Required because vector stores expect an embeddings object, not a raw function
+- Set `provider: 'hf-inference'` to avoid "defaulting to auto" log noise
+
+**MemoryVectorStore** — in-memory vector store from `@langchain/classic/vectorstores/memory`
+- Import path gotcha: `langchain/vectorstores/memory` no longer exists in newer versions — moved to `@langchain/classic`
+- `ERR_PACKAGE_PATH_NOT_EXPORTED` = the package doesn't export that subpath anymore
+- `fromTexts(texts, metadatas, embeddings)` — embed + store in one step
+- `similaritySearchWithScore(query, k)` — returns `[Document, score][]` sorted by relevance
+- Replaces the entire manual embed → cosine similarity → sort loop from Lesson 1
+
+**The Document object** — `{ pageContent: string, metadata: object }`
+- Core data structure in LangChain — every piece of text is a Document
+- `fromTexts()` creates Documents behind the scenes; `new Document({...})` creates them explicitly
+- `addDocuments()` — add to an existing store incrementally (e.g. multiple batches, different sources)
+
+**Metadata & filtering**
+- Each document can carry metadata: `{ source, language, section, ... }`
+- Tracks WHERE content came from — essential for citations and scoping
+- Filter function: `similaritySearchWithScore(query, k, (doc) => doc.metadata.language === 'python')`
+- Real-world use: filter by file, version, user permissions, date, etc.
+
+**asRetriever(k)** — converts a vector store into a Retriever
+- Retriever has one method: `invoke(query)` → `Document[]` (no scores)
+- Simpler interface = pluggable into LangChain chains
+- `similaritySearchWithScore()` → for exploration and debugging (shows scores)
+- `asRetriever().invoke()` → for plugging into RAG pipelines (Lesson 5)
+
+---
+
+### Lesson 3 — Document Loaders & Text Splitters
+
+**The problem:** hardcoded strings don't scale. Real data lives in files (markdown, PDF, web pages). And embedding an entire file as one vector loses detail — a query about "agents" would match a 2654-char doc about everything.
+
+**TextLoader** — `@langchain/classic/document_loaders/fs/text`
+- Reads a file, returns `Document[]` with `metadata.source` set to the file path
+- Returns the entire file as ONE document — too broad for search
+
+**RecursiveCharacterTextSplitter** — `@langchain/textsplitters`
+- Splits documents into smaller chunks for embedding
+- "Recursive" = tries splitting on `\n\n` (paragraphs) first, then `\n` (lines), then ` ` (words), then characters
+- Picks the largest separator that keeps chunks under the size limit
+- Preserves metadata from original document, adds `loc.lines` (start/end line numbers)
+
+**Key parameters:**
+- `chunkSize` — max characters per chunk
+- `chunkOverlap` — characters shared between adjacent chunks (prevents losing context at boundaries)
+- Guidelines: 300-800 chars is typical sweet spot; overlap ~10-20% of chunkSize
+- Too small → fragmented context, many chunks; too large → broad/imprecise search results
+
+**Chunk size experiment results (2654-char document):**
+- size=200, overlap=0 → 25 chunks (avg 105 chars) — over-fragmented
+- size=500, overlap=50 → 6 chunks (avg 441 chars) — good balance
+- size=1000, overlap=100 → 3 chunks (avg 883 chars) — too broad
+
+**Full RAG preparation pipeline:**
+1. **Load:** `TextLoader` reads file → 1 Document
+2. **Split:** `RecursiveCharacterTextSplitter` → N chunks (Documents with loc metadata)
+3. **Store:** `MemoryVectorStore.fromDocuments(chunks, embeddings)` — embeds + stores all chunks
+4. **Search:** `similaritySearchWithScore(query, k)` — finds the right chunk by meaning
+
+**`fromDocuments` vs `fromTexts`:**
+- `fromDocuments(docs, embeddings)` — takes Document objects directly (metadata already attached)
+- `fromTexts(texts, metadatas, embeddings)` — takes plain strings + separate metadata array
+
+---
+
+### Lesson 4 — Retrieval Chains
+
+**This is RAG** — the complete loop: question → retrieve → augment prompt → generate answer.
+
+**Manual RAG (step by step):**
+1. `retriever.invoke(query)` → get relevant Document chunks
+2. Join chunks into one context string: `docs.map(d => d.pageContent).join('\n\n')`
+3. Inject context + question into a prompt template
+4. `prompt.pipe(llm).pipe(parser)` → answer grounded in your documents
+
+**The RAG prompt pattern:**
+- "Answer based ONLY on the following context" — constrains the LLM to your docs
+- "If the context doesn't contain the answer, say I don't have enough information" — prevents hallucination
+- Tested: LLM refused to answer "capital of Japan" because it wasn't in the docs, even though it knows the answer
+
+**Chain-based RAG with `RunnablePassthrough.assign()`:**
+- `RunnablePassthrough.assign({ context: ... })` — passes input through AND adds new fields
+- Retrieval pipeline: `RunnableLambda(input → question).pipe(retriever).pipe(formatDocs)`
+- Full chain: `passthrough.assign({context}).pipe(prompt).pipe(llm).pipe(parser)`
+- Single `.invoke({ question })` — question in, answer out
+
+**RAG with sources — chained `.assign()` calls:**
+- First `.assign({ docs })` — retrieves documents, keeps them in pipeline
+- Second `.assign({ context })` — formats docs to string, `docs` still available
+- Third `.assign({ answer })` — generates answer from context + question
+- Final output: `{ question, docs, context, answer }` — answer + citations
+- Sources show file path + line numbers from `doc.metadata.loc.lines`
+
+**Multiple files:** `buildVectorStore()` loads multiple files, splits each, combines all chunks into one store. Queries search across all documents automatically.
+
+---
+
+### Lesson 5 — Conversational RAG
+
+**The problem:** each RAG query is independent — follow-up questions like "What types are there?" fail because the retriever doesn't know what "there" refers to from the previous turn.
+
+**Solution: question rephrasing** — use the LLM to rewrite follow-ups into standalone questions before retrieval.
+- "What types are there?" + history about streams → "What types of streams are there in Node.js?"
+- "How do they decide?" + history about agents → "How do LangChain agents decide what to do?"
+
+**Rephrase prompt pattern:**
+- `MessagesPlaceholder('history')` — injects conversation history as HumanMessage/AIMessage
+- System instruction: "Rephrase the follow-up into a standalone question. Return ONLY the question."
+- Chain: `rephrasePrompt.pipe(llm).pipe(StringOutputParser)`
+
+**Full conversational RAG flow inside `ask()`:**
+1. **Rephrase** — if history exists, rephrase; otherwise use question as-is
+2. **Retrieve** — search vector store with the standalone question
+3. **Answer** — RAG prompt with context + standalone question → LLM generates answer
+4. **Update history** — push `HumanMessage(original question)` + `AIMessage(answer)` to history array
+
+**Key design decisions:**
+- Store the ORIGINAL question in history (not the rephrased one) — keeps conversation natural
+- Only rephrase when there IS history — first question doesn't need it
+- History grows with each turn — enables multi-step follow-ups and topic switches
+- Grounding ("Answer ONLY based on context") still works in conversational mode — unrelated questions get "I don't have enough information"
